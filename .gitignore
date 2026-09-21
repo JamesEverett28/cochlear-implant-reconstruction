@@ -1,0 +1,9 @@
+.DS_store
+__pycache__/
+*.py[cod]
+
+videos/
+runs/
+predictions/
+datasets/**/images/
+datasets/**/labels/
