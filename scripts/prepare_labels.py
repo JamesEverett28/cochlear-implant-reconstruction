@@ -45,7 +45,7 @@ labels_dir.mkdir(exist_ok=True)
 
 frame_annotations = defaultdict(list)
 
-cap  = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(video_path)
 if not cap.isOpened():
     raise RuntimeError("Could not load video")
 
