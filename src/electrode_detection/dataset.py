@@ -13,7 +13,7 @@ from .rendering import mask_from_obbs
 def export_ls_json(
     refresh_token: str,
     out_path: str | Path,
-    project_id: int = 19,
+    project_id: int,
     base_url: str = "http://localhost:8080",
 ) -> None:
     
@@ -156,7 +156,7 @@ def generate_dataset_from_json(
             image_path = images_dir / f"{file_stem}.tiff"
 
             prev_obbs = frame_annotations.get(frame_num - stride, [])
-            prior = mask_from_obbs(prev_obbs, img_w, img_h)
+            prior = mask_from_obbs(prev_obbs, img_h, img_w)
 
             channels = [
                 frame[:, :, 2],

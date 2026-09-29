@@ -1,6 +1,6 @@
+from ultralytics import YOLO
+from .fourchannels_yolo import FourChannelsOBBYolo
 from pathlib import Path
-
-from electrode_detection.fourchannel_model import FourChannelsOBBYolo
 
 data_path = Path("datasets/side1-insertion/4channels/data.yaml")
 project = "side1-insertion"
@@ -38,3 +38,6 @@ result = model.train(
     bgr=0.0,
     auto_augment=None,
 )
+
+
+
