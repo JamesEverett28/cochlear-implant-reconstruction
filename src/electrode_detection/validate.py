@@ -8,7 +8,7 @@ import numpy.typing as npt
 import cv2
 
 if TYPE_CHECKING:
-    from .inference import FramePredition
+    from .inference import FramePrediction
 
 
 
@@ -42,13 +42,13 @@ def get_iou(
 
 
 def get_frame_metrics(
-    predictions: list[npt.NDArray[np.float32]],
-    labels: list[npt.NDArray[np.float32]],
-    iou_thresh = float
+    predictions: list[npt.NDArray[np.float32]], 
+    labels: list[npt.NDArray[np.float32]], 
+    iou_thresh: float
 ) -> tuple[list[float], int, int, int]:
 
     """
-    Get IoUs, TP, FP, FN for a particular frame
+    Get IoUs, TP, FP, FN for a single frame, given some iou threshold.
     """
 
     pairs = []
@@ -89,28 +89,48 @@ def get_frame_metrics(
 
 
 def get_video_metrics(
-    predictions: list[FramePredition],
+    predictions: list[FramePrediction],
     labels: dict[int, list[npt.NDArray[np.float32]]],
     iou_thresh: float
-) -> list[PerformanceMetrics]:
+) -> PerformanceMetrics:
 
     """
-    Get precision, recall, median matched iou, mean matched iou for a sequence of frames
+    Get precision, recall, median matched iou, mean matched iou for a sequence of frames.
     """
-
-    if len(predictions) != len(labels):
-
-        raise RuntimeError("Number of prediction frames must match number of labelled frames.")
 
     ious = []
     tp, fp, fn = 0, 0, 0
 
-    for i in range(len(predictions)):
+    for prediction in predictions:
+
+        pred_obbs = prediction.obbs 
+        label_obbs = labels.get(prediction.frame_num, [])
 
         ious_i, tp_i, fp_i, fn_i = get_frame_metrics(
-            predictions=predictions[i],
-            labels=labels[i]
+            predictions=pred_obbs,
+            labels=label_obbs,
+            iou_thresh=iou_thresh
         )
+
+        ious.extend(ious_i)
+        tp += tp_i
+        fp += fp_i
+        fn += fn_i
+
+    return PerformanceMetrics(
+        precision = tp / (tp + fp),
+        recall = tp / (tp + fn),
+        median_matched_iou = np.median(ious),
+        mean_matched_iou = np.mean(ious)
+    )
+
+
+
+
+
+
+
+
 
 
     

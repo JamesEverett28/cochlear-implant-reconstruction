@@ -4,7 +4,7 @@ from electrode_detection.video import frame_diff
 
 in_path = Path("videos/3-view/angled-light/combined.avi")
 out_path = in_path.parent / "combined-diff-gray2.avi"
-gray_scale = False
+gray_scale = True
 thresh = None
 
 def main() -> None:

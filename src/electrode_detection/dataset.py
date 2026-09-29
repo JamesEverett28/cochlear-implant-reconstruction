@@ -12,12 +12,6 @@ import cv2
 from .rendering import mask_from_obbs
 
 
-@dataclass
-class FrameLabel:
-    frame_idx: int
-    obbs: npt.NDArray[np.float32] 
-
-
 
 def export_ls_json(
     refresh_token: str,
@@ -61,7 +55,8 @@ def export_ls_json(
 def ls_rect_to_obb(
     x:float, y:float, w:float, h:float, r:float,
     img_w: int, 
-    img_h: int
+    img_h: int,
+    normalize: bool
 ) -> npt.NDArray[np.float32]:
 
     """
@@ -89,8 +84,11 @@ def ls_rect_to_obb(
 
     corners = corners @ R.T
     corners += np.array([x, y])
-    corners[:, 0] /= img_w
-    corners[:, 1] /= img_h
+
+    if normalize:
+
+        corners[:, 0] /= img_w
+        corners[:, 1] /= img_h
 
     return corners
 
@@ -99,9 +97,10 @@ def ls_rect_to_obb(
 def annotations_dict_from_json(
     json_path: str | Path,
     stride: int,
-    obb_format: str,
-    img_h: int | None = None,
-    img_w: int | None = None
+    img_h: int,
+    img_w: int,
+    frame_range: tuple[int, int] | None = None,
+    normalize: bool = True
 ) -> dict[int, list[npt.NDArray[np.float32]]]:
 
     """
@@ -123,25 +122,14 @@ def annotations_dict_from_json(
             for instance in electrode["value"]["sequence"]:
     
                 frame_num = instance["frame"]
-                if frame_num % stride != 0:
+                if (frame_num-1) % stride != 0:
+                    continue
+                if frame_range is not None and (frame_num < frame_range[0] or frame_num > frame_range[1]):
                     continue
     
                 x, y, w, h, r = [instance[u] for u in ["x", "y", "width", "height", "rotation"]]
 
-                if obb_format == "xyxyxyxy":
-                    if img_h is None or img_w is None:
-
-                        raise RuntimeError("obb format xyxyxyxy requires image height and width args.")
-
-                    obb = ls_rect_to_obb(x, y, w, h, r, img_w, img_h)
-
-                elif obb_format == "xywhr":
-
-                    obb = np.array([x, y, w, h, r], dtype=np.float32)
-
-                else:
-
-                    raise RuntimeError(f"obb format not recognised: {obb_format}.")
+                obb = ls_rect_to_obb(x, y, w, h, r, img_w, img_h, normalize=normalize)
 
                 frame_annotations[frame_num].append(obb)
     
@@ -153,7 +141,8 @@ def generate_dataset_from_json(
     video_path: str | Path,
     dataset_dir : str | Path,
     stride: int,
-    fourth_channel: bool
+    fourth_channel: bool,
+    frame_range: tuple[int, int] | None = None
 ) -> None:
 
     """
@@ -170,9 +159,9 @@ def generate_dataset_from_json(
     frame_annotations = annotations_dict_from_json(
         json_path=json_path,
         stride=stride,
-        obb_format="xyxyxyxy",
         img_h=img_h,
-        img_w=img_w
+        img_w=img_w,
+        frame_range=frame_range
     )
 
     images_dir = Path(dataset_dir) / "images"

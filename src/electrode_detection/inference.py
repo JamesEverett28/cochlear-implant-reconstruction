@@ -13,16 +13,16 @@ from .rendering import mask_from_obbs
 
 
 @dataclass
-class FramePredition:
-    frame_idx: int
-    obbs: npt.NDArray[np.float32]
+class FramePrediction:
+    frame_num: int
+    obbs: list[npt.NDArray[np.float32]]
     confidence: npt.NDArray[np.float32]
 
 
 def frame_inference(
     model: YOLO | FourChannelsOBBYolo,
     bgr_frame: npt.NDArray[np.uint8],
-    prev_obbs: list[npt.NDArray[np.float64]] | None = None
+    prev_obbs: list[npt.NDArray[np.float32]] | None = None
 ) -> OBB:
 
     """
@@ -50,7 +50,8 @@ def video_inference(
     model: YOLO | FourChannelsOBBYolo,
     in_path: str | Path,
     stride: int,
-) -> list[FramePredition]:
+    frame_range: tuple[int, int] | None = None
+) -> list[FramePrediction]:
 
     """
     Run inference on a full video.
@@ -62,34 +63,35 @@ def video_inference(
     if not cap.isOpened():
         raise RuntimeError("Could not load video")
 
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    frame_idx = 0
+    frame_num = 1 if frame_range is None else frame_range[0]
     predictions = []
     prev_obbs = np.empty((0, 4, 2), dtype=np.float32)
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num - 1)
 
     while True:
 
         ret, frame = cap.read()
         if not ret:
             break
+        if frame_range is not None and frame_num > frame_range[1]:
+            break
 
-        if frame_idx % stride == 0:
+        if (frame_num-1) % stride == 0:
 
             obbs = frame_inference(model, frame, prev_obbs)
 
             predictions.append(
-                FramePredition(
-                    frame_idx = frame_idx,
-                    obbs = obbs.xyxyxyxy.cpu().numpy(),
+                FramePrediction(
+                    frame_num = frame_num,
+                    obbs = list(obbs.xyxyxyxy.cpu().numpy()),
                     confidence = obbs.conf.cpu().numpy()
                 )
             )
 
             prev_obbs = predictions[-1].obbs
 
-        frame_idx += 1
-        print(f"Processed {frame_idx}/{frame_count}")
+        frame_num += 1
 
     cap.release()
 

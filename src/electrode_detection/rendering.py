@@ -7,8 +7,7 @@ import numpy.typing as npt
 import cv2
 
 if TYPE_CHECKING:
-    from .inference import FramePredition
-
+    from .inference import FramePrediction
 
 
 def mask_from_obbs(
@@ -82,7 +81,7 @@ def draw_frame_predictions(
 def draw_video_predictions(
     in_path: str | Path,
     out_path: str | Path,
-    predictions: list[FramePredition]
+    predictions: list[FramePrediction]
 ) -> None:
 
     """
@@ -100,10 +99,9 @@ def draw_video_predictions(
 
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     in_fps = cap.get(cv2.CAP_PROP_FPS)
 
-    stride = predictions[1].frame_idx - predictions[0].frame_idx
+    stride = predictions[1].frame_num - predictions[0].frame_num
     out_fps = in_fps / stride
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
@@ -120,7 +118,9 @@ def draw_video_predictions(
     if not out.isOpened():
         raise RuntimeError("Could not open output video")
 
-    frame_idx = 0
+    frame_num = 1
+    first_pred = predictions[0].frame_num
+    final_pred = predictions[-1].frame_num
 
     while True:
 
@@ -128,15 +128,21 @@ def draw_video_predictions(
         if not ret:
             break
 
-        if frame_idx % stride == 0:
+        if (frame_num-1) % stride == 0:
 
-            obbs = predictions[frame_idx // stride].obbs
+            if frame_num >= first_pred and frame_num <= final_pred:
+
+                obbs = predictions[(frame_num - first_pred) // stride].obbs
+
+            else:
+
+                obbs = []
 
             annotated_frame = draw_frame_predictions(frame, obbs, scale)
 
             out.write(annotated_frame)
 
-        frame_idx += 1
+        frame_num += 1
 
     cap.release()
     out.release()
