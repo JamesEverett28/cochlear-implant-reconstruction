@@ -3,12 +3,21 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from collections import defaultdict
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 import cv2
 
 from .rendering import mask_from_obbs
+
+
+@dataclass
+class FrameLabel:
+    frame_idx: int
+    obbs: npt.NDArray[np.float32] 
+
+
 
 def export_ls_json(
     refresh_token: str,
@@ -86,6 +95,59 @@ def ls_rect_to_obb(
     return corners
 
 
+
+def annotations_dict_from_json(
+    json_path: str | Path,
+    stride: int,
+    obb_format: str,
+    img_h: int | None = None,
+    img_w: int | None = None
+) -> dict[int, list[npt.NDArray[np.float32]]]:
+
+    """
+    Create frame annotations dict from label-studio json.
+    """
+
+    json_path = Path(json_path)
+    
+    frame_annotations = defaultdict(list)
+
+    with json_path.open("r", encoding="utf-8") as f:
+        task = json.load(f)
+    
+        for electrode in task[0]["annotations"][0]["result"]:
+    
+            if electrode["type"] != "videorectangle":
+                continue
+    
+            for instance in electrode["value"]["sequence"]:
+    
+                frame_num = instance["frame"]
+                if frame_num % stride != 0:
+                    continue
+    
+                x, y, w, h, r = [instance[u] for u in ["x", "y", "width", "height", "rotation"]]
+
+                if obb_format == "xyxyxyxy":
+                    if img_h is None or img_w is None:
+
+                        raise RuntimeError("obb format xyxyxyxy requires image height and width args.")
+
+                    obb = ls_rect_to_obb(x, y, w, h, r, img_w, img_h)
+
+                elif obb_format == "xywhr":
+
+                    obb = np.array([x, y, w, h, r], dtype=np.float32)
+
+                else:
+
+                    raise RuntimeError(f"obb format not recognised: {obb_format}.")
+
+                frame_annotations[frame_num].append(obb)
+    
+    return frame_annotations
+
+
 def generate_dataset_from_json(
     json_path: str | Path,
     video_path: str | Path,
@@ -98,36 +160,20 @@ def generate_dataset_from_json(
     Generate jpg/tiff and txt files from label-studio json
     """
 
-    json_path = Path(json_path)
-
-    frame_annotations = defaultdict(list)
-
     cap  = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise RuntimeError("Could not load video")
 
-    img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     img_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
-    with json_path.open("r", encoding="utf-8") as f:
-        task = json.load(f)
-
-    for electrode in task[0]["annotations"][0]["result"]:
-
-        if electrode["type"] != "videorectangle":
-            continue
-
-        for instance in electrode["value"]["sequence"]:
-
-            frame_num = instance["frame"]
-            if frame_num % stride != 0:
-                continue
-
-            x, y, w, h, r = [instance[u] for u in ["x", "y", "width", "height", "rotation"]]
-            obb = ls_rect_to_obb(x, y, w, h, r, img_w, img_h)
-
-            frame_annotations[frame_num].append(obb)
-    
+    frame_annotations = annotations_dict_from_json(
+        json_path=json_path,
+        stride=stride,
+        obb_format="xyxyxyxy",
+        img_h=img_h,
+        img_w=img_w
+    )
 
     images_dir = Path(dataset_dir) / "images"
     labels_dir = Path(dataset_dir) / "labels"
