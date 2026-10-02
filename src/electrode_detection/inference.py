@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 
 from .fourchannel_model import FourChannelsOBBYolo
-from .prior import Tracks, get_prior
+from .prior import Tracks, get_prior_from_obbs
 
 
 
@@ -48,6 +48,8 @@ def video_inference(
     model: YOLO | FourChannelsOBBYolo,
     in_path: str | Path,
     stride: int,
+    rasterize_method: str,
+    predict_method: str,
     tracks_dropout: int = 1,
     confidence: float = 0.25,
     frame_range: tuple[int, int] | None = None
@@ -85,11 +87,14 @@ def video_inference(
 
         if (frame_num-1) % stride == 0:
 
-            prior = get_prior(
-                frame_num=frame_num,
-                tracks=tracks,
+            pred_obbs = tracks.predict_obbs(frame_num, predict_method)
+
+            prior = get_prior_from_obbs(
+                obbs=pred_obbs,
                 img_h=frame_h,
-                img_w=frame_w
+                img_w=frame_w,
+                rasterize_method=rasterize_method,
+                perturb=False
             )
 
             obbs = frame_inference(model, frame, prior, confidence)

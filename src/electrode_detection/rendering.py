@@ -27,9 +27,11 @@ def rasterize_obbs(
 
     for obb in obbs:
 
-        corners = xywhr2xyxyxyxy(obb)
+        obb = xywhr2xyxyxyxy(obb)
 
-        cv2.fillConvexPoly(prior, corners, 255)
+        obb = np.round(obb).astype(np.int32)
+
+        cv2.fillConvexPoly(prior, obb, 255)
 
     return prior
 
@@ -128,7 +130,6 @@ def rasterize_prior(
             obbs,
             img_h,
             img_w,
-            normalized
         )
 
     elif rasterize_method == "gaussian":
@@ -137,7 +138,6 @@ def rasterize_prior(
             obbs,
             img_h, 
             img_w,
-            normalized,
             sigma_scale,
             truncate
         )

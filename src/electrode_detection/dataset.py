@@ -3,13 +3,13 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from collections import defaultdict
-from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 import cv2
+from ultralytics.utils.ops import xywhr2xyxyxyxy
 
-from .rendering import rasterize_prior
+from .prior import get_prior_from_obbs
 
 
 
@@ -52,55 +52,13 @@ def export_ls_json(
 
 
 
-def ls_rect_to_obb(
-    x:float, y:float, w:float, h:float, r:float,
-    img_w: int, 
-    img_h: int,
-    normalize: bool
-) -> npt.NDArray[np.float32]:
-
-    """
-    Convert label-studio xywhr format to corner coords between 0-1.
-    """
-
-    x = x / 100 * img_w
-    y = y / 100 * img_h
-    w = w / 100 * img_w
-    h = h / 100 * img_h
-
-    theta = np.deg2rad(r)
-
-    R = np.array([
-        [np.cos(theta), -np.sin(theta)],
-        [np.sin(theta),  np.cos(theta)],
-    ])
-
-    corners = np.array([
-        [0, 0],
-        [w, 0],
-        [w, h],
-        [0, h]
-    ], dtype=np.float32)
-
-    corners = corners @ R.T
-    corners += np.array([x, y])
-
-    if normalize:
-
-        corners[:, 0] /= img_w
-        corners[:, 1] /= img_h
-
-    return corners
-
-
-
 def annotations_dict_from_json(
     json_path: str | Path,
     stride: int,
     img_h: int,
     img_w: int,
     frame_range: tuple[int, int] | None = None,
-    normalize: bool = True
+    box_format: str = "xywhr",
 ) -> dict[int, list[npt.NDArray[np.float32]]]:
 
     """
@@ -129,10 +87,21 @@ def annotations_dict_from_json(
     
                 x, y, w, h, r = [instance[u] for u in ["x", "y", "width", "height", "rotation"]]
 
-                obb = ls_rect_to_obb(x, y, w, h, r, img_w, img_h, normalize=normalize)
+                x = x / 100 * img_w
+                y = y / 100 * img_h
+                w = w / 100 * img_w
+                h = h / 100 * img_h
 
-                frame_annotations[frame_num].append(obb)
-    
+                xywhr = np.array([x, y, w, h, r], dtype=np.float32)
+
+                if box_format == "xywhr":
+
+                    frame_annotations[frame_num].append(xywhr)
+
+                elif box_format == "xyxyxyxy":
+
+                    frame_annotations[frame_num].append(xywhr2xyxyxyxy(xywhr))
+
     return frame_annotations
 
 
@@ -142,12 +111,10 @@ def generate_dataset_from_json(
     dataset_dir : str | Path,
     stride: int,
     fourth_channel: bool,
-    frame_range: tuple[int, int] | None = None,
     rasterize_method: str = "direct",
-    sigma_scale: float = 0.5,
-    truncate: float = 3.0,
     perturb: bool = True,
-    
+    frame_range: tuple[int, int] | None = None,
+
 ) -> None:
 
     """
@@ -195,8 +162,13 @@ def generate_dataset_from_json(
 
             image_path = images_dir / f"{file_stem}.tiff"
 
-            prev_obbs = frame_annotations.get(frame_num - stride, [])
-            prior = rasterize_obbs(prev_obbs, img_h, img_w, normalized=True)
+            prior = get_prior_from_obbs(
+                obbs=frame_annotations[frame_num],
+                img_h=img_h,
+                img_w=img_w,
+                rasterize_method=rasterize_method,
+                perturb=True
+            )
 
             channels = [
                 frame[:, :, 2],
@@ -214,6 +186,11 @@ def generate_dataset_from_json(
         with label_path.open("w", encoding="utf-8") as f:
 
             for obb in frame_annotations[frame_num]:
+
+                corners = xywhr2xyxyxyxy(obb)
+
+                corners[:, 0] /= img_w
+                corners[:, 1] /= img_h
                 
                 coords = " ".join(
                     f"{coord:.6f}" for coord in obb.ravel()

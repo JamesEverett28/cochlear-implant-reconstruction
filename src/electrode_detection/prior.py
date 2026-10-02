@@ -4,15 +4,15 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 import numpy.typing as npt
+from ultralytics.utils.ops import xyxyxyxy2xywhr
 
 from .rendering import rasterize_prior
-
 if TYPE_CHECKING:
     from .inference import FramePrediction
 
 
 
-def perturb(
+def perturb_obb(
     obb: npt.NDArray[np.float32],
     pos_std: float = 0.05,
     size_std: float = 0.05,
@@ -55,12 +55,12 @@ def linear_predict(
 
             continue
 
-        c0 = track[-2].obb.mean(axis=0)
-        c1 = track[-1].obb.mean(axis=0)
+        c0 = track[-2].mean(axis=0)
+        c1 = track[-1].mean(axis=0)
 
         c3 = c1 + (c1 - c0) * (frame_num - track[-1].frame_num) / (track[-1].frame_num - track[-2].frame_num)
 
-        pred = track[-1].obb + c3
+        pred = track[-1] + c3
 
         preds.append(pred)
 
@@ -119,7 +119,7 @@ class Tracks:
         for pred_idx, pred_obb in enumerate(predictions.obbs):
             for track_idx, track in enumerate(self.tracks):
 
-                intersection, _ = cv2.intersectConvexConvex(pred_obb, track.obb)
+                intersection, _ = cv2.intersectConvexConvex(pred_obb, track.obbs[-1])
 
                 if intersection > 0:
 
@@ -165,7 +165,7 @@ class Tracks:
 
 
 
-    def predict_obb(
+    def predict_obbs(
         frame_num: int,
         predict_method: str = "linear"
     ) -> list[npt.NDArray[np.float32]]:
@@ -185,41 +185,36 @@ class Tracks:
 
         
 
-
-
-def get_prior(
-    frame_num: int,
-    tracks: Tracks,
+def get_prior_from_obbs(
+    obbs: list[npt.NDArray[np.float32]],
     img_h: int,
     img_w: int,
-    predict_method: str,
     rasterize_method: str,
+    perturb: bool,
     sigma_scale: float = 0.5,
     truncate: float = 3.0,
-    perturb: bool = False,
     pos_std: float = 0.05,
     size_std: float = 0.05,
     angle_std: float = np.deg2rad(3),
 ) -> npt.NDArray[np.uint8]:
 
+    for i in range(len(obbs)):
 
-    pred_obbs = tracks.predict_obbs(frame_num, predict_method)
+        if len(obbs[i].shape) > 1:
 
-    for i in range(len(pred_obbs)):
-
-        pred_obbs[i] = xyxyxyxy_to_xywhr(pred_obbs[i])
+            obbs[i] = xyxyxyxy2xywhr(obbs[i])
 
         if perturb:
 
-            pred_obbs[i] = perturb_xywhr(
-                obb=pred_obbs[i],
+            obbs[i] = perturb_obb(
+                obb=obbs[i],
                 pos_std=pos_std,
                 size_std=size_std,
                 angle_std=angle_std
             )
 
     prior = rasterize_prior(
-        obbs=pred_obbs,
+        obbs=obbs,
         img_h=img_h,
         img_w=img_w,
         normalized=False,
