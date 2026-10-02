@@ -45,7 +45,7 @@ def rasterize_gaussian_blobs(
 ) -> npt.NDArray[np.uint8]:
     
     """
-    Produce orientated Gaussian blobs.
+    Produce orientated Gaussian blobs from xywhr obbs.
 
     sigma_scale:
         sigma relative to half-width / half-height.
@@ -113,7 +113,6 @@ def rasterize_prior(
     obbs: list[npt.NDArray[np.float32]],
     img_h: int,
     img_w: int,
-    normalized: bool,
     rasterize_method: str,
     sigma_scale: float = 0.5,
     truncate: float = 3.0,
@@ -121,7 +120,7 @@ def rasterize_prior(
 ) -> npt.NDArray[np.uint8]:
 
     """
-    Rasterize obbs according to specified method.
+    Rasterize xywhr obbs according to specified method.
     """
 
     if rasterize_method == "direct":
@@ -187,7 +186,7 @@ def draw_frame_predictions(
 
 
 def draw_video_predictions(
-    in_path: str | Path,
+    cap: cv2.VideoCapture,
     out_path: str | Path,
     predictions: list[FramePrediction]
 ) -> None:
@@ -196,14 +195,8 @@ def draw_video_predictions(
     Draw obb predictions on corresponding video.
     """
 
-    in_path = Path(in_path)
     out_path = Path(out_path)
-
     out_path.parent.mkdir(exist_ok=True, parents=True)
-
-    cap = cv2.VideoCapture(in_path)
-    if not cap.isOpened():
-        raise RuntimeError("Could not load video")
 
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))

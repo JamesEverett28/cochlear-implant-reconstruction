@@ -19,7 +19,7 @@ def perturb_obb(
     angle_std: float = np.deg2rad(3),
 ) -> npt.NDArray[np.float32]:
     """
-    Perturb obb slightly to prevent 'perfect' training priors.
+    Perturb xywhr obb slightly to prevent 'perfect' training priors.
     """
 
     cx, cy, w, h, r = obb
@@ -198,6 +198,10 @@ def get_prior_from_obbs(
     angle_std: float = np.deg2rad(3),
 ) -> npt.NDArray[np.uint8]:
 
+    """
+    Get prior image from input obbs.
+    """
+
     for i in range(len(obbs)):
 
         if len(obbs[i].shape) > 1:
@@ -217,7 +221,6 @@ def get_prior_from_obbs(
         obbs=obbs,
         img_h=img_h,
         img_w=img_w,
-        normalized=False,
         rasterize_method=rasterize_method,
         sigma_scale=sigma_scale,
         truncate=truncate

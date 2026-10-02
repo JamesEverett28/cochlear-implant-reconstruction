@@ -57,8 +57,8 @@ def annotations_dict_from_json(
     stride: int,
     img_h: int,
     img_w: int,
+    box_format: str,
     frame_range: tuple[int, int] | None = None,
-    box_format: str = "xywhr",
 ) -> dict[int, list[npt.NDArray[np.float32]]]:
 
     """
@@ -102,17 +102,20 @@ def annotations_dict_from_json(
 
                     frame_annotations[frame_num].append(xywhr2xyxyxyxy(xywhr))
 
+                else:
+
+                    raise ValueError(f"Unknown box format {box_format}")
+
     return frame_annotations
 
 
 def generate_dataset_from_json(
     json_path: str | Path,
-    video_path: str | Path,
+    cap: cv2.VideoCapture,
     dataset_dir : str | Path,
     stride: int,
     fourth_channel: bool,
     rasterize_method: str = "direct",
-    perturb: bool = True,
     frame_range: tuple[int, int] | None = None,
 
 ) -> None:
@@ -120,10 +123,6 @@ def generate_dataset_from_json(
     """
     Generate jpg/tiff and txt files from label-studio json
     """
-
-    cap  = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise RuntimeError("Could not load video")
 
     img_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -133,6 +132,7 @@ def generate_dataset_from_json(
         stride=stride,
         img_h=img_h,
         img_w=img_w,
+        box_format="xywhr",
         frame_range=frame_range
     )
 

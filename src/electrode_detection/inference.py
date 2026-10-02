@@ -46,24 +46,18 @@ def frame_inference(
 
 def video_inference(
     model: YOLO | FourChannelsOBBYolo,
-    in_path: str | Path,
+    cap: cv2.VideoCapture,
     stride: int,
     rasterize_method: str,
     predict_method: str,
-    tracks_dropout: int = 1,
-    confidence: float = 0.25,
+    tracks_dropout: int,
+    confidence: float,
     frame_range: tuple[int, int] | None = None
 ) -> list[FramePrediction]:
 
     """
     Run inference on a full video.
     """
-
-    in_path = Path(in_path)
-
-    cap = cv2.VideoCapture(in_path)
-    if not cap.isOpened():
-        raise RuntimeError("Could not load video")
 
     frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
