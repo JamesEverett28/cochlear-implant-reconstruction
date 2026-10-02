@@ -5,41 +5,21 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 
+from .rendering import rasterize_prior
+
 if TYPE_CHECKING:
     from .inference import FramePrediction
 
 
 
-def xyxyxyxy_to_xywhr(
-    obb: npt.NDArray[np.float32]
-) -> npt.NDArray[np.float32]:
-
-    """
-    Convert (un-normalized) xyxyxyxy obb to xywhr obb, with r in radians.
-    """
-
-    center = obb.mean(axis=0)
-
-    edge_w = obb[1] - obb[0]
-    edge_h = obb[2] - obb[1]
-
-    w = np.linalg.norm(edge_w)
-    h = np.linalg.norm(edge_h)
-
-    r = np.arctan2(edge_w[1], edge_w[0])
-
-    return np.array([center[0], center[1], w, h, r], dtype=np.float32)
-
-
-
-def perturb_xywhr(
+def perturb(
     obb: npt.NDArray[np.float32],
     pos_std: float = 0.05,
     size_std: float = 0.05,
     angle_std: float = np.deg2rad(3),
 ) -> npt.NDArray[np.float32]:
     """
-    Perturb xywhr obb slightly to prevent 'perfect' training priors.
+    Perturb obb slightly to prevent 'perfect' training priors.
     """
 
     cx, cy, w, h, r = obb
@@ -56,78 +36,6 @@ def perturb_xywhr(
     r += np.random.normal(0, angle_std)
 
     return np.array([cx, cy, w, h, r], dtype=np.float32)
-
-
-
-def rasterize_gaussian_blobs(
-    obbs: list[npt.NDArray[np.float32]],
-    img_h: int,
-    img_w: int,
-    sigma_scale: float = 0.5,
-    truncate: float = 3.0
-) -> npt.NDArray[np.uint8]:
-    """
-    Produce orientated Gaussian blobs from xywhr obbs.
-
-    sigma_scale:
-        sigma relative to half-width / half-height.
-
-        1.0 => sigma_x = w/2
-        0.5 => sigma_x = w/4
-
-    """
-
-    prior = np.zeros((img_h, img_w), dtype=np.float32)
-
-    for cx, cy, w, h, r in obbs:
-
-        sigma_x = max(w * 0.5 * sigma_scale, 1e-6)
-        sigma_y = max(h * 0.5 * sigma_scale, 1e-6)
-
-        c = np.cos(r)
-        s = np.sin(r)
-
-        # Axis-aligned extent of the rotated truncate-sigma ellipse
-        rx = truncate * np.sqrt(
-            (sigma_x * c) ** 2 +
-            (sigma_y * s) ** 2
-        )
-        ry = truncate * np.sqrt(
-            (sigma_x * s) ** 2 +
-            (sigma_y * c) ** 2
-        )
-
-        # Clamp ROI to image
-        x0 = max(0, int(np.floor(cx - rx)))
-        x1 = min(img_w, int(np.ceil(cx + rx)) + 1)
-        y0 = max(0, int(np.floor(cy - ry)))
-        y1 = min(img_h, int(np.ceil(cy + ry)) + 1)
-
-        if x0 >= x1 or y0 >= y1:
-            continue
-
-        # Only generate coordinates inside this OBB's ROI
-        yy, xx = np.mgrid[y0:y1, x0:x1]
-
-        dx = xx - cx
-        dy = yy - cy
-
-        # Rotate into OBB coordinate system
-        x_rot = c * dx + s * dy
-        y_rot = -s * dx + c * dy
-
-        blob = np.exp(
-            -0.5 * (
-                (x_rot / sigma_x) ** 2 +
-                (y_rot / sigma_y) ** 2
-            )
-        )
-
-        # Combine overlapping priors using maximum
-        roi = prior[y0:y1, x0:x1]
-        np.maximum(roi, blob, out=roi)
-
-    return np.round(prior * 255).astype(np.uint8)
 
 
 
@@ -284,8 +192,10 @@ def get_prior(
     tracks: Tracks,
     img_h: int,
     img_w: int,
-    predict_method: str = "linear",
+    predict_method: str,
+    rasterize_method: str,
     sigma_scale: float = 0.5,
+    truncate: float = 3.0,
     perturb: bool = False,
     pos_std: float = 0.05,
     size_std: float = 0.05,
@@ -308,11 +218,14 @@ def get_prior(
                 angle_std=angle_std
             )
 
-    prior = rasterize_gaussian_blobs(
+    prior = rasterize_prior(
         obbs=pred_obbs,
         img_h=img_h,
         img_w=img_w,
-        sigma_scale=sigma_scale
+        normalized=False,
+        rasterize_method=rasterize_method,
+        sigma_scale=sigma_scale,
+        truncate=truncate
     )
 
     return prior

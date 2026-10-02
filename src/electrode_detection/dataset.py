@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import cv2
 
-from .rendering import mask_from_obbs
+from .rendering import rasterize_prior
 
 
 
@@ -142,7 +142,12 @@ def generate_dataset_from_json(
     dataset_dir : str | Path,
     stride: int,
     fourth_channel: bool,
-    frame_range: tuple[int, int] | None = None
+    frame_range: tuple[int, int] | None = None,
+    rasterize_method: str = "direct",
+    sigma_scale: float = 0.5,
+    truncate: float = 3.0,
+    perturb: bool = True,
+    
 ) -> None:
 
     """
@@ -191,7 +196,7 @@ def generate_dataset_from_json(
             image_path = images_dir / f"{file_stem}.tiff"
 
             prev_obbs = frame_annotations.get(frame_num - stride, [])
-            prior = mask_from_obbs(prev_obbs, img_h, img_w)
+            prior = rasterize_obbs(prev_obbs, img_h, img_w, normalized=True)
 
             channels = [
                 frame[:, :, 2],
