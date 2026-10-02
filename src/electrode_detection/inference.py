@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 
 from .fourchannel_model import FourChannelsOBBYolo
-from .rendering import mask_from_obbs
+from .prior import Tracks, get_prior
 
 
 
@@ -22,19 +22,17 @@ class FramePrediction:
 def frame_inference(
     model: YOLO | FourChannelsOBBYolo,
     bgr_frame: npt.NDArray[np.uint8],
-    prev_obbs: list[npt.NDArray[np.float32]] | None = None
+    prior: npt.NDArray[np.uint8],
+    confidence: float
 ) -> OBB:
 
     """
     Get predictions from bgr frame and optional prior.
     """
 
-    h, w = bgr_frame.shape[:2]
-
     if type(model) == FourChannelsOBBYolo:
 
         rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-        prior = mask_from_obbs(prev_obbs, h, w, normalized=False)
 
         channels = np.dstack((rgb_frame, prior))
 
@@ -42,7 +40,7 @@ def frame_inference(
 
         channels = bgr_frame
 
-    return model(channels)[0].obb
+    return model(channels, confidence)[0].obb
 
 
 
@@ -50,6 +48,8 @@ def video_inference(
     model: YOLO | FourChannelsOBBYolo,
     in_path: str | Path,
     stride: int,
+    tracks_dropout: int = 1,
+    confidence: float = 0.25,
     frame_range: tuple[int, int] | None = None
 ) -> list[FramePrediction]:
 
@@ -63,9 +63,15 @@ def video_inference(
     if not cap.isOpened():
         raise RuntimeError("Could not load video")
 
+    frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+
     frame_num = 1 if frame_range is None else frame_range[0]
     predictions = []
-    prev_obbs = np.empty((0, 4, 2), dtype=np.float32)
+    tracks = Tracks(
+        stride=stride, 
+        dropout=tracks_dropout
+    )
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num - 1)
 
@@ -79,7 +85,14 @@ def video_inference(
 
         if (frame_num-1) % stride == 0:
 
-            obbs = frame_inference(model, frame, prev_obbs)
+            prior = get_prior(
+                frame_num=frame_num,
+                tracks=tracks,
+                img_h=frame_h,
+                img_w=frame_w
+            )
+
+            obbs = frame_inference(model, frame, prior, confidence)
 
             predictions.append(
                 FramePrediction(
@@ -89,7 +102,7 @@ def video_inference(
                 )
             )
 
-            prev_obbs = predictions[-1].obbs
+            tracks.update(predictions[-1])
 
         frame_num += 1
 

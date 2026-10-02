@@ -2,8 +2,8 @@ from pathlib import Path
 
 from electrode_detection.video import crop_video
 
-in_path = Path("videos/3-view/angled-no-light/side1.mp4")
-out_path = Path("videos/3-view/angled-no-light/side1-crop.mp4")
+in_path = Path("videos/3-view/angled-light/side1.mp4")
+out_path = Path("videos/3-view/angled-light/side1-crop2.mp4")
 
 w, h, x, y = 255, 80, 195, 200
 

@@ -71,7 +71,6 @@ def get_frame_metrics(
     ious = []
 
     for iou, a_idx, b_idx in pairs:
-
         if a_idx not in matched_a_idxs and b_idx not in matched_b_idxs:
 
             ious.append(iou)
