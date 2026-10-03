@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 import numpy.typing as npt
-from ultralytics.utils.ops import xyxyxyxy2xywhr
 
+from .obb import OBB
 from .rendering import rasterize_prior
 if TYPE_CHECKING:
     from .inference import FramePrediction
@@ -13,29 +13,29 @@ if TYPE_CHECKING:
 
 
 def perturb_obb(
-    obb: npt.NDArray[np.float32],
+    obb: OBB,
     pos_std: float = 0.05,
     size_std: float = 0.05,
     angle_std: float = np.deg2rad(3),
-) -> npt.NDArray[np.float32]:
+) -> OBB:
     """
-    Perturb xywhr obb slightly to prevent 'perfect' training priors.
+    Perturb obb slightly to prevent 'perfect' training priors.
     """
 
-    cx, cy, w, h, r = obb
+    cx, cy, w, h, r = obb.xywhr
 
     # Additive position noise
     cx += np.random.normal(0, pos_std * w)
     cy += np.random.normal(0, pos_std * h)
 
     # Additive size noise
-    w += np.random.normal(0, size_std * w)
-    h += np.random.normal(0, size_std * h)
+    w = np.abs(w + np.random.normal(0, size_std * w))
+    h = np.abs(h + np.random.normal(0, size_std * h))
 
     # Additive angular noise
     r += np.random.normal(0, angle_std)
 
-    return np.array([cx, cy, w, h, r], dtype=np.float32)
+    return OBB(np.array([cx, cy, w, h, r], dtype=np.float32))
 
 
 
@@ -43,24 +43,25 @@ def linear_predict(
     frame_num: int,
     tracks: Tracks,
 
-) -> list[npt.NDArray[np.float32]]:
+) -> list[OBB]:
 
     # Predict obbs at a given frame by extrapolating the centre from two previous frames.
 
     preds = []
 
-    for track in tracks:
+    for track in tracks.tracks:
 
-        if len(track) < 2:
+        if len(track.obbs) < 2:
 
             continue
 
-        c0 = track[-2].mean(axis=0)
-        c1 = track[-1].mean(axis=0)
+        c0 = track.obbs[-2].xywhr[:2]
+        c1 = track.obbs[-1].xywhr[:2]
 
-        c3 = c1 + (c1 - c0) * (frame_num - track[-1].frame_num) / (track[-1].frame_num - track[-2].frame_num)
+        del_c = (c1 - c0) * (frame_num - track.frame_nums[-1]) / (track.frame_nums[-1] - track.frame_nums[-2])
 
-        pred = track[-1] + c3
+        pred = track.obbs[-1].copy()
+        pred.xywhr[:2] += del_c
 
         preds.append(pred)
 
@@ -75,15 +76,16 @@ class Track:
     def __init__(
         self,
         frame_num: int,
-        obb: npt.NDArray[np.float32],
+        obb: OBB,
     ) -> None:
 
         self.frame_nums = [frame_num]
         self.obbs = [obb]
 
     def update(
+        self,
         frame_num: int,
-        obb: npt.NDArray[np.float32]
+        obb: OBB
     ):
 
         self.frame_nums.append(frame_num)
@@ -111,19 +113,23 @@ class Tracks:
 
 
     def update(
+        self,
         predictions: FramePrediction
     ) -> None:
 
         pairs = []
 
-        for pred_idx, pred_obb in enumerate(predictions.obbs):
-            for track_idx, track in enumerate(self.tracks):
+        pred_corners = [obb.corners for obb in predictions.obbs]
+        track_corners = [track.obbs[-1].corners for track in self.tracks]
 
-                intersection, _ = cv2.intersectConvexConvex(pred_obb, track.obbs[-1])
+        for pred_idx, pred_obb in enumerate(pred_corners):
+            for track_idx, track_obb in enumerate(track_corners):
+
+                intersection, _ = cv2.intersectConvexConvex(pred_obb, track_obb)
 
                 if intersection > 0:
 
-                    pairs.append(intersection, pred_idx, track_idx)
+                    pairs.append((intersection, pred_idx, track_idx))
 
         pairs.sort(
             key = lambda x: x[0], 
@@ -140,6 +146,9 @@ class Tracks:
                     predictions.obbs[pred_idx]
                 )
 
+                matched_pred_idxs.add(pred_idx)
+                matched_track_idxs.add(track_idx)
+
         updated_tracks = []
         
         for track_idx, track in enumerate(self.tracks):
@@ -148,7 +157,7 @@ class Tracks:
 
                 updated_tracks.append(self.tracks[track_idx])
 
-            elif predictions.frame_num - track[-1].frame_num <= self.dropout * self.stride:
+            elif predictions.frame_num - track.frame_nums[-1] <= self.dropout * self.stride:
 
                 updated_tracks.append(self.tracks[track_idx])
 
@@ -168,7 +177,7 @@ class Tracks:
     def predict_obbs(
         frame_num: int,
         predict_method: str = "linear"
-    ) -> list[npt.NDArray[np.float32]]:
+    ) -> list[OBB]:
 
 
         PREDICT_METHODS = {
@@ -186,7 +195,7 @@ class Tracks:
         
 
 def get_prior_from_obbs(
-    obbs: list[npt.NDArray[np.float32]],
+    obbs: list[OBB],
     img_h: int,
     img_w: int,
     rasterize_method: str,
@@ -202,13 +211,11 @@ def get_prior_from_obbs(
     Get prior image from input obbs.
     """
 
-    for i in range(len(obbs)):
+    if perturb:
 
-        if len(obbs[i].shape) > 1:
+        obbs = [obb.copy() for obb in obbs]
 
-            obbs[i] = xyxyxyxy2xywhr(obbs[i])
-
-        if perturb:
+        for i in range(len(obbs)):
 
             obbs[i] = perturb_obb(
                 obb=obbs[i],
@@ -248,12 +255,4 @@ def get_prior_from_obbs(
 
 
 
-        
-
-
-
-
-def get_prior():
-
-    pass 
-
+    

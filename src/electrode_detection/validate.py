@@ -2,11 +2,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
-import numpy.typing as npt
 import cv2
+
+from .obb import OBB
 
 if TYPE_CHECKING:
     from .inference import FramePrediction
@@ -24,18 +24,18 @@ class PerformanceMetrics:
 
 
 def get_iou(
-    a: npt.NDArray[np.float32],
-    b: npt.NDArray[np.float32]
+    a: OBB,
+    b: OBB
 ) -> float:
 
     """
-    Get iou between two rects of shape (4, 2).
+    Get iou between two obbs.
     """
 
-    area_a = abs(cv2.contourArea(a))
-    area_b = abs(cv2.contourArea(b))
+    area_a = abs(cv2.contourArea(a.corners))
+    area_b = abs(cv2.contourArea(b.corners))
 
-    intersection, _ = cv2.intersectConvexConvex(a, b)
+    intersection, _ = cv2.intersectConvexConvex(a.corners, b.corners)
 
     union = area_a + area_b - intersection
 
@@ -44,8 +44,8 @@ def get_iou(
 
 
 def get_frame_metrics(
-    predictions: list[npt.NDArray[np.float32]], 
-    labels: list[npt.NDArray[np.float32]], 
+    predictions: list[OBB], 
+    labels: list[OBB], 
     iou_thresh: float
 ) -> tuple[list[float], int, int, int]:
 
@@ -91,7 +91,7 @@ def get_frame_metrics(
 
 def get_video_metrics(
     predictions: list[FramePrediction],
-    labels: dict[int, list[npt.NDArray[np.float32]]],
+    labels: dict[int, list[OBB]],
     iou_thresh: float
 ) -> PerformanceMetrics:
 

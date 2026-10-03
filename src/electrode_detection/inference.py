@@ -2,12 +2,13 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from ultralytics import YOLO
-from ultralytics.engine.results import OBB
+from ultralytics.engine.results import OBB as UltralyticsOBB
 import numpy.typing as npt
 import numpy as np
 import cv2
 
 from .fourchannel_model import FourChannelsOBBYolo
+from .obb import OBB
 from .prior import Tracks, get_prior_from_obbs
 
 
@@ -15,7 +16,7 @@ from .prior import Tracks, get_prior_from_obbs
 @dataclass
 class FramePrediction:
     frame_num: int
-    obbs: list[npt.NDArray[np.float32]]
+    obbs: list[OBB]
     confidence: npt.NDArray[np.float32]
 
 
@@ -24,13 +25,13 @@ def frame_inference(
     bgr_frame: npt.NDArray[np.uint8],
     prior: npt.NDArray[np.uint8],
     confidence: float
-) -> OBB:
+) -> UltralyticsOBB:
 
     """
     Get predictions from bgr frame and optional prior.
     """
 
-    if type(model) == FourChannelsOBBYolo:
+    if isinstance(model, FourChannelsOBBYolo):
 
         rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
 
@@ -40,7 +41,7 @@ def frame_inference(
 
         channels = bgr_frame
 
-    return model(channels, confidence)[0].obb
+    return model(channels, conf=confidence)[0].obb
 
 
 
@@ -59,8 +60,8 @@ def video_inference(
     Run inference on a full video.
     """
 
-    frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    img_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
     frame_num = 1 if frame_range is None else frame_range[0]
     predictions = []
@@ -85,8 +86,8 @@ def video_inference(
 
             prior = get_prior_from_obbs(
                 obbs=pred_obbs,
-                img_h=frame_h,
-                img_w=frame_w,
+                img_h=img_h,
+                img_w=img_w,
                 rasterize_method=rasterize_method,
                 perturb=False
             )
@@ -96,7 +97,7 @@ def video_inference(
             predictions.append(
                 FramePrediction(
                     frame_num = frame_num,
-                    obbs = list(obbs.xyxyxyxy.cpu().numpy()),
+                    obbs = [OBB(xywhr) for xywhr in obbs.xywhr.cpu().numpy()],
                     confidence = obbs.conf.cpu().numpy()
                 )
             )
@@ -108,4 +109,3 @@ def video_inference(
     cap.release()
 
     return predictions
-

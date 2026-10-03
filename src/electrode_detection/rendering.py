@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 import cv2
 
-from ultralytics.utils.ops import xywhr2xyxyxyxy
+from .obb import OBB
 
 if TYPE_CHECKING:
     from .inference import FramePrediction
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 def rasterize_obbs(
-    obbs: list[npt.NDArray[np.float32]],
+    obbs: list[OBB],
     img_h: int,
     img_w: int,
 ) -> npt.NDArray[np.uint8]:
@@ -27,17 +27,15 @@ def rasterize_obbs(
 
     for obb in obbs:
 
-        obb = xywhr2xyxyxyxy(obb)
+        corners = np.round(obb.corners).astype(np.int32)
 
-        obb = np.round(obb).astype(np.int32)
-
-        cv2.fillConvexPoly(prior, obb, 255)
+        cv2.fillConvexPoly(prior, corners, 255)
 
     return prior
 
 
 def rasterize_gaussian_blobs(
-    obbs: list[npt.NDArray[np.float32]],
+    obbs: list[OBB],
     img_h: int,
     img_w: int,
     sigma_scale: float = 0.5,
@@ -57,7 +55,9 @@ def rasterize_gaussian_blobs(
 
     prior = np.zeros((img_h, img_w), dtype=np.float32)
 
-    for cx, cy, w, h, r in obbs:
+    for obb in obbs:
+
+        cx, cy, w, h, r = obb.xywhr
 
         sigma_x = max(w * 0.5 * sigma_scale, 1e-6)
         sigma_y = max(h * 0.5 * sigma_scale, 1e-6)
@@ -110,7 +110,7 @@ def rasterize_gaussian_blobs(
 
 
 def rasterize_prior(
-    obbs: list[npt.NDArray[np.float32]],
+    obbs: list[OBB],
     img_h: int,
     img_w: int,
     rasterize_method: str,
@@ -120,7 +120,7 @@ def rasterize_prior(
 ) -> npt.NDArray[np.uint8]:
 
     """
-    Rasterize xywhr obbs according to specified method.
+    Rasterize obbs according to specified method.
     """
 
     if rasterize_method == "direct":
@@ -149,7 +149,7 @@ def rasterize_prior(
 
 def draw_frame_predictions(
     frame: npt.NDArray[np.uint8],
-    obbs: npt.NDArray[np.float32],
+    obbs: list[OBB],
     scale: int
 ) -> npt.NDArray[np.uint8]:
 
@@ -168,9 +168,7 @@ def draw_frame_predictions(
 
     for obb in obbs:
 
-        corners = xywhr2xyxyxyxy(obb)
-
-        corners = np.round(corners * scale).astype(np.int32)
+        corners = np.round(obb.corners * scale).astype(np.int32)
 
         cv2.polylines(
             frame,
@@ -253,6 +251,4 @@ def draw_video_predictions(
 
 
     
-
-
 

@@ -5,10 +5,9 @@ from urllib.request import Request, urlopen
 from collections import defaultdict
 
 import numpy as np
-import numpy.typing as npt
 import cv2
-from ultralytics.utils.ops import xywhr2xyxyxyxy
 
+from .obb import OBB
 from .prior import get_prior_from_obbs
 
 
@@ -57,9 +56,8 @@ def annotations_dict_from_json(
     stride: int,
     img_h: int,
     img_w: int,
-    box_format: str,
     frame_range: tuple[int, int] | None = None,
-) -> dict[int, list[npt.NDArray[np.float32]]]:
+) -> dict[int, list[OBB]]:
 
     """
     Create frame annotations dict from label-studio json.
@@ -92,19 +90,9 @@ def annotations_dict_from_json(
                 w = w / 100 * img_w
                 h = h / 100 * img_h
 
-                xywhr = np.array([x, y, w, h, r], dtype=np.float32)
-
-                if box_format == "xywhr":
-
-                    frame_annotations[frame_num].append(xywhr)
-
-                elif box_format == "xyxyxyxy":
-
-                    frame_annotations[frame_num].append(xywhr2xyxyxyxy(xywhr))
-
-                else:
-
-                    raise ValueError(f"Unknown box format {box_format}")
+                frame_annotations[frame_num].append(
+                    OBB(np.array([x, y, w, h, np.deg2rad(r)], dtype=np.float32))
+                )
 
     return frame_annotations
 
@@ -132,7 +120,6 @@ def generate_dataset_from_json(
         stride=stride,
         img_h=img_h,
         img_w=img_w,
-        box_format="xywhr",
         frame_range=frame_range
     )
 
@@ -187,13 +174,10 @@ def generate_dataset_from_json(
 
             for obb in frame_annotations[frame_num]:
 
-                corners = xywhr2xyxyxyxy(obb)
-
-                corners[:, 0] /= img_w
-                corners[:, 1] /= img_h
+                corners = obb.corners_normalized(img_h, img_w)
                 
                 coords = " ".join(
-                    f"{coord:.6f}" for coord in obb.ravel()
+                    f"{coord:.6f}" for coord in corners.ravel()
                 )
 
                 f.write(f"0 {coords}\n")
