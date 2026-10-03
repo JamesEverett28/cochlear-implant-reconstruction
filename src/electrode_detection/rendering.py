@@ -243,12 +243,4 @@ def draw_video_predictions(
 
         frame_num += 1
 
-    cap.release()
     out.release()
-
-
-
-
-
-    
-

@@ -234,25 +234,3 @@ def get_prior_from_obbs(
     )
 
     return prior
-
-    
-
-
-
-
-
-       
-
-
-        
-    
-
-
-
-
-
-
-
-
-
-    

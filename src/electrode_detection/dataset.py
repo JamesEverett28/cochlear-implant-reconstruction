@@ -85,8 +85,8 @@ def annotations_dict_from_json(
     
                 x, y, w, h, r = [instance[u] for u in ["x", "y", "width", "height", "rotation"]]
 
-                x = x / 100 * img_w
-                y = y / 100 * img_h
+                x = (x + w/2) / 100 * img_w
+                y = (y + h/2) / 100 * img_h
                 w = w / 100 * img_w
                 h = h / 100 * img_h
 
@@ -182,4 +182,4 @@ def generate_dataset_from_json(
 
                 f.write(f"0 {coords}\n")
 
-    cap.release()
+

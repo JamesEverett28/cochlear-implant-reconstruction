@@ -124,20 +124,3 @@ def get_video_metrics(
         median_matched_iou = np.median(ious),
         mean_matched_iou = np.mean(ious)
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-    

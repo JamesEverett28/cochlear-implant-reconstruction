@@ -106,6 +106,5 @@ def video_inference(
 
         frame_num += 1
 
-    cap.release()
 
     return predictions
