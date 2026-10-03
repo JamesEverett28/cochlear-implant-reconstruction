@@ -175,6 +175,7 @@ class Tracks:
 
 
     def predict_obbs(
+        self,
         frame_num: int,
         predict_method: str = "linear"
     ) -> list[OBB]:
@@ -205,11 +206,18 @@ def get_prior_from_obbs(
     pos_std: float = 0.05,
     size_std: float = 0.05,
     angle_std: float = np.deg2rad(3),
+    blank_prior_prob: float = 0
 ) -> npt.NDArray[np.uint8]:
 
     """
     Get prior image from input obbs.
     """
+
+    if np.random.binomial(1, p=blank_prior_prob):
+
+        prior = np.zeros((img_h, img_w), dtype=np.uint8)
+
+        return prior
 
     if perturb:
 

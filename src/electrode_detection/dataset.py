@@ -97,6 +97,25 @@ def annotations_dict_from_json(
     return frame_annotations
 
 
+def write_dataset_config(dataset_dir: str | Path, fourth_channel: bool) -> Path:
+
+    """
+    Create the Ultralytics dataset.yaml configuration beside generated samples.
+    """
+
+    dataset_yaml = Path(dataset_dir) / "data.yaml"
+    channels = "channels: 4\n\n" if fourth_channel else ""
+    dataset_yaml.write_text(
+        "train: images\n"
+        "val: images\n\n"
+        f"{channels}"
+        "names:\n"
+        "  0: Electrode\n",
+        encoding="utf-8",
+    )
+    return dataset_yaml
+
+
 def generate_dataset_from_json(
     json_path: str | Path,
     cap: cv2.VideoCapture,
@@ -104,6 +123,10 @@ def generate_dataset_from_json(
     stride: int,
     fourth_channel: bool,
     rasterize_method: str = "direct",
+    blank_prior_prob:float = 0.2,
+    pos_std: float = 0.05,
+    size_std: float = 0.05,
+    angle_std: float = np.deg2rad(3),
     frame_range: tuple[int, int] | None = None,
 
 ) -> None:
@@ -128,6 +151,14 @@ def generate_dataset_from_json(
 
     images_dir.mkdir(exist_ok=True, parents=True)
     labels_dir.mkdir(exist_ok=True)
+
+    for image in images_dir.iterdir():
+        image.unlink()
+
+    for label in labels_dir.iterdir():
+        label.unlink()
+
+    write_dataset_config(dataset_dir, fourth_channel)
 
     for frame_num in sorted(frame_annotations):
     
@@ -154,7 +185,11 @@ def generate_dataset_from_json(
                 img_h=img_h,
                 img_w=img_w,
                 rasterize_method=rasterize_method,
-                perturb=True
+                perturb=True,
+                pos_std=pos_std,
+                size_std=size_std,
+                angle_std=angle_std,
+                blank_prior_prob=blank_prior_prob
             )
 
             channels = [
@@ -181,5 +216,3 @@ def generate_dataset_from_json(
                 )
 
                 f.write(f"0 {coords}\n")
-
-

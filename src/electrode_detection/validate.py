@@ -2,14 +2,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import cv2
+from ultralytics import YOLO
 
 from .obb import OBB
+from .inference import video_inference
+from .rendering import draw_video_predictions
+from .dataset import annotations_dict_from_json
 
 if TYPE_CHECKING:
     from .inference import FramePrediction
+    from .fourchannel_model import FourChannelsOBBYolo
 
 
 
@@ -124,3 +130,61 @@ def get_video_metrics(
         median_matched_iou = np.median(ious),
         mean_matched_iou = np.mean(ious)
     )
+
+
+
+def validate(
+    model: YOLO | FourChannelsOBBYolo,
+    cap: cv2.VideoCapture,
+    stride: int,
+    rasterize_method: str,
+    predict_method: str,
+    tracks_dropout: int,
+    confidence: float,
+    json_path: str | Path,
+    iou_thresh: float,
+    video_out_path: str | Path | None = None,
+    frame_range: tuple[int, int] | None = None
+) -> PerformanceMetrics:
+
+    """
+    Perform full validation process on model.
+    """
+
+    img_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+
+    predictions = video_inference(
+        model=model,
+        cap=cap,
+        stride=stride,
+        rasterize_method=rasterize_method,
+        predict_method=predict_method,
+        tracks_dropout=tracks_dropout,
+        confidence=confidence,
+        frame_range=frame_range
+    )
+
+    if video_out_path is not None:
+        
+        draw_video_predictions(
+            cap=cap,
+            predictions=predictions,
+            out_path=video_out_path,
+        )
+
+    val_labels = annotations_dict_from_json(
+        json_path=json_path,
+        stride=stride,
+        img_h=img_h,
+        img_w=img_w,
+        frame_range=frame_range
+    )
+
+    video_metrics = get_video_metrics(
+        predictions=predictions,
+        labels=val_labels,
+        iou_thresh=iou_thresh,
+    )
+
+    return video_metrics

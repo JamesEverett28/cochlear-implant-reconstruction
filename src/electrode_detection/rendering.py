@@ -217,6 +217,9 @@ def draw_video_predictions(
     if not out.isOpened():
         raise RuntimeError("Could not open output video")
 
+    # Render from the beginning regardless of the position left by inference.
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
     frame_num = 1
     first_pred = predictions[0].frame_num
     final_pred = predictions[-1].frame_num

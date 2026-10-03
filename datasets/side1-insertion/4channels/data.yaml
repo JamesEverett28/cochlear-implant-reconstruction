@@ -1,7 +1,0 @@
-train: images
-val: images 
-
-channels: 4
-
-names:
-  0: Electrode

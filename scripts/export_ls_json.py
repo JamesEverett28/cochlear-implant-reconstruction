@@ -4,7 +4,7 @@ from electrode_detection.dataset import export_ls_json
 refresh_token = None
 project_id = 19
 
-json_path = Path("datasets/side1-insertion/label-studio.json")
+json_path = Path("datasets/side1/label-studio.json")
 
 def main() -> None:
 

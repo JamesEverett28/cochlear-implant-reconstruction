@@ -102,4 +102,3 @@ def crop_video(
         ],
         check=True,
     )
-
