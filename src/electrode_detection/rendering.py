@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 from pathlib import Path
 
 import numpy as np
@@ -7,7 +8,6 @@ import numpy.typing as npt
 import cv2
 
 from .obb import OBB
-
 if TYPE_CHECKING:
     from .inference import FramePrediction
 

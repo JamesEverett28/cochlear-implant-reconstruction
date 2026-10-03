@@ -1,4 +1,3 @@
-from pathlib import Path 
 from dataclasses import dataclass
 
 from ultralytics import YOLO

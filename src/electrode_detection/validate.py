@@ -12,7 +12,6 @@ from .obb import OBB
 from .inference import video_inference
 from .rendering import draw_video_predictions
 from .dataset import annotations_dict_from_json
-
 if TYPE_CHECKING:
     from .inference import FramePrediction
     from .fourchannel_model import FourChannelsOBBYolo
