@@ -19,4 +19,5 @@ include = [
     "electrode_detection*",
     "electrode_segmentation*",
     "utils*",
+    "SAM-2 @ git+https://github.com/facebookresearch/sam2.git">
 ]

@@ -3,9 +3,11 @@ from pathlib import Path
 from utils.video import crop_video
 
 in_path = Path("videos/3-view/angled-light/side1.mp4")
-out_path = Path("videos/3-view/angled-light/side1-crop2.mp4")
+out_path = Path("videos/3-view/angled-light/side1-start1.mp4")
 
-w, h, x, y = 255, 80, 195, 200
+#w, h, x, y = 255, 80, 195, 200
+
+w, h, x, y = 400, 200, 100, 110
 
 def main() -> None:
 
