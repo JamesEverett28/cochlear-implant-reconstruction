@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from electrode_detection.video import frame_diff
+from utils.video import frame_diff
 
 in_path = Path("videos/3-view/angled-light/combined.avi")
 out_path = in_path.parent / "combined-diff-gray2.avi"

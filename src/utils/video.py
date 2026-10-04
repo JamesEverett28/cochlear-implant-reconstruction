@@ -102,3 +102,39 @@ def crop_video(
         ],
         check=True,
     )
+
+
+
+def extract_frames(
+    cap: cv2.VideoCapture,
+    output_dir: str | Path,
+    stride: int = 1,
+) -> None:
+    
+    """
+    Extract frames from a video as sequentially numbered JPEGs.
+    """
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    source_idx = 0
+    output_idx = 0
+
+    while True:
+        
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if source_idx % stride == 0:
+            frame_path = output_dir / f"{output_idx:06d}.jpg"
+
+            if not cv2.imwrite(frame_path, frame):
+                raise RuntimeError(f"Could not write frame: {frame_path}")
+
+            output_idx += 1
+
+        source_idx += 1
