@@ -2,11 +2,11 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.mp4
 
 videos/
-runs/
-predictions/
 datasets/**/images/
 datasets/**/labels/
 dependencies/
 experiments/
+temp1/
