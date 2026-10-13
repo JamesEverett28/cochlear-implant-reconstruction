@@ -26,7 +26,7 @@ base = Experiment(
     size_std=0.05,
     angle_std=np.deg2rad(3),
     blank_prior_prob=0.2,
-    iou_thresh=0.95
+    iou_thresh=0.5
 )
 
 
@@ -38,13 +38,13 @@ EXPERIMENTS = [
     replace(base, name="exp4", model_path=Path("yolo26m-obb.pt")),
     replace(base, name="exp5", fourth_channel=True),
     replace(base, name="exp6", fourth_channel=True, rasterize_method="gaussian"),
-    replace(base, name="exp7", fourth_channel=True, rasterize_method="guassian", stride=1),
+    replace(base, name="exp7", fourth_channel=True, rasterize_method="gaussian", stride=1),
     replace(base, name="exp8", fourth_channel=True, rasterize_method="gaussian", pos_std=0.1, size_std=1, angle_std=np.deg2rad(6)),
-    replace(base, name="exp9", fourth_channel=True, rasterize_method="gaussian", confidence=0.15),
-    replace(base, name="exp10", fourth_channel=True, rasterize_method="gaussian", confidence=0.35),
-    replace(base, name="exp11", fourth_channel=True, rasterize_method="gaussian", blank_prior_prob=0.1),
-    replace(base, name="exp12", fourth_channel=True, rasterize_method="gaussian", blank_prior_prob=0.3),
-    replace(base, name="exp13", fourth_channel=True, rasterize_method="gaussian", iou_thresh=0.9),
+    replace(base, name="exp9", fourth_channel=True, rasterize_method="gaussian", pos_std=0.2, size_std=2, angle_std=np.deg2rad(12)),
+    replace(base, name="exp10", fourth_channel=True, rasterize_method="gaussian", confidence=0.15),
+    replace(base, name="exp11", fourth_channel=True, rasterize_method="gaussian", confidence=0.35),
+    replace(base, name="exp12", fourth_channel=True, rasterize_method="gaussian", blank_prior_prob=0.1),
+    replace(base, name="exp13", fourth_channel=True, rasterize_method="gaussian", blank_prior_prob=0.3),
 ]
 
 

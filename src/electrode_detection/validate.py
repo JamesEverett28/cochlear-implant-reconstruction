@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 class PerformanceMetrics:
     precision: float
     recall: float
+    f1: float
     median_matched_iou: float
     mean_matched_iou: float
 
@@ -126,6 +127,7 @@ def get_video_metrics(
     return PerformanceMetrics(
         precision = tp / (tp + fp),
         recall = tp / (tp + fn),
+        f1 = 2*tp / (2*tp + fp + fn),
         median_matched_iou = np.median(ious),
         mean_matched_iou = np.mean(ious)
     )
