@@ -1,0 +1,154 @@
+from pathlib import Path
+import subprocess
+
+import cv2
+
+
+def frame_diff(
+    in_path: str | Path,
+    out_path: str | Path,
+    gray_scale: bool,
+    thresh: int | None = None
+) -> None:
+
+    """
+    Subtract the first frame from each subsequent frame in a video.
+    Optionally gray scale and threshold.
+    """
+
+    in_path = Path(in_path)
+    out_path = Path(out_path)
+
+    out_path.parent.mkdir(exist_ok=True, parents=True)
+
+    if thresh is not None and not gray_scale:
+        raise RuntimeError("Can only threshold frames if gray-scaled")
+
+    cap = cv2.VideoCapture(in_path)
+    if not cap.isOpened():
+        raise RuntimeError("Could not load video")
+
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+    out = cv2.VideoWriter(
+        out_path, 
+        fourcc, 
+        fps, 
+        (frame_width, frame_height), 
+        isColor = not gray_scale
+    )
+
+    if not out.isOpened():
+        raise RuntimeError("Could not open output video")
+
+    ref_frame = None
+
+    while True:
+
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if ref_frame is None:
+            ref_frame = frame
+
+        diff = cv2.absdiff(frame, ref_frame)
+
+        if gray_scale:
+            diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+
+            if thresh is not None:
+                _, diff = cv2.threshold(diff, thresh, 255, cv2.THRESH_BINARY)
+
+        out.write(diff)
+
+    cap.release()
+    out.release()
+
+
+def crop_video(
+    in_path: str | Path,
+    out_path: str | Path,
+    w:int, h:int, x:int, y:int,
+    crf: int = 18,
+    preset: str = "fast"
+) -> None:
+
+    """
+    Crop a video using ffmpeg.
+    """
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(exist_ok=True, parents=True)
+
+    in_path = str(in_path)
+    out_path = str(out_path)
+
+    crop = f"{w}:{h}:{x}:{y}"
+
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-i", in_path,
+            "-vf", f"crop={crop}",
+            "-c:v", "libx264",
+            "-crf", str(crf),
+            "-preset", preset,
+            out_path,
+        ],
+        check=True,
+    )
+
+
+
+def extract_frames(
+    cap: cv2.VideoCapture,
+    output_dir: str | Path,
+    stride: int = 1,
+    scale: float | None = None,
+    frame_range: tuple[int, int] | None = None
+) -> bool:
+    
+    """
+    Extract frames from a video as sequentially numbered JPEGs.
+    """
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    source_idx = 0 if frame_range is None else frame_range[0]
+    output_idx = 0
+
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, source_idx)
+
+    while True:
+        
+        ret, frame = cap.read()
+        if not ret:
+            return True
+        if frame_range is not None and source_idx >= frame_range[1]:
+            return False
+        
+
+        if source_idx % stride == 0:
+            frame_path = output_dir / f"{output_idx:06d}.jpg"
+
+            if scale is not None:
+                frame = cv2.resize(frame, None, fx=scale, fy=scale)
+
+            if not cv2.imwrite(frame_path, frame):
+                raise RuntimeError(f"Could not write frame: {frame_path}")
+
+            output_idx += 1
+
+        source_idx += 1
+
+
+

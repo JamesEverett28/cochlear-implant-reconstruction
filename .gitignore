@@ -10,5 +10,4 @@ datasets/**/images/
 datasets/**/labels/
 dependencies/
 experiments/
-temp1/
 temp/

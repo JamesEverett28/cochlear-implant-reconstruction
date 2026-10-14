@@ -48,10 +48,10 @@ def video_inference(
     model: YOLO | FourChannelsOBBYolo,
     cap: cv2.VideoCapture,
     stride: int,
-    rasterize_method: str,
-    predict_method: str,
-    tracks_dropout: int,
-    confidence: float,
+    rasterize_method: str = "gaussian",
+    predict_method: str = "linear",
+    tracks_dropout: int = 1,
+    confidence: float = 0.25,
     frame_range: tuple[int, int] | None = None
 ) -> list[FramePrediction]:
 

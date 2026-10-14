@@ -10,14 +10,17 @@ import cv2
 from sam2.build_sam import build_sam2_video_predictor
 
 from .rendering import draw_mask
-from utils.video import extract_frames
+from video.video import extract_frames
 from .utils import get_checkpoint_and_config
 
 def points2mask(
     cap: cv2.VideoCapture,
     out_path: str | Path,
     points: dict[int, npt.NDArray[np.float32]],
-    stride: int,
+    extract_stride: int,
+    prompt_stride: int,
+    block_size: int,
+    scale: float | None = None,
     model_size: str = "large"
 ):
 
@@ -25,10 +28,12 @@ def points2mask(
     Generate a mask from a list of points.
     """
 
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
     device = torch.device(
         "mps" if torch.backends.mps.is_available() else "cpu"
     )
-
 
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -39,7 +44,7 @@ def points2mask(
     out = cv2.VideoWriter(
         out_path, 
         fourcc, 
-        fps / stride, 
+        fps / extract_stride, 
         (frame_w, frame_h)
     )
 
@@ -50,48 +55,73 @@ def points2mask(
 
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device)
 
-    with TemporaryDirectory() as frame_dir:
+    start = 0
+    stop = extract_stride * block_size
 
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        extract_frames(cap, frame_dir, stride)
+    while True:
 
-        inference_state = predictor.init_state(
-            video_path=frame_dir,
-            offload_video_to_cpu=True,
-            offload_state_to_cpu=True,
-            async_loading_frames=True,
-        )
+        with TemporaryDirectory() as frame_dir:
 
-        for frame_idx, frame_points in points.items():
-            right_to_left = frame_points[
-                np.argsort(frame_points[:, 0])[::-1]
-            ]
+            end = extract_frames(cap, frame_dir, extract_stride, scale, (start, stop))
 
-            labels = np.ones(len(right_to_left), dtype=np.int32)
-
-            predictor.add_new_points_or_box(
-                inference_state=inference_state,
-                frame_idx=frame_idx // stride,
-                obj_id=0,
-                points=right_to_left,
-                labels=labels,
+            inference_state = predictor.init_state(
+                video_path=frame_dir,
+                offload_video_to_cpu=True,
+                offload_state_to_cpu=True,
+                async_loading_frames=True,
             )
 
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            for frame_idx, frame_points in points.items():
 
-        for frame_idx, _, logits in predictor.propagate_in_video(inference_state):
+                if frame_idx < start or frame_idx >= stop:
+                    continue
 
-            source_frame_idx = frame_idx * stride
-            cap.set(cv2.CAP_PROP_POS_FRAMES, source_frame_idx)
+                frame_idx = (frame_idx - start) // extract_stride
 
-            ret, frame = cap.read()
-            if not ret:
-                raise RuntimeError(f"Could not read frame {source_frame_idx}")
+                if frame_idx % prompt_stride != 0:
+                    continue
 
-            mask = (logits[0, 0] > 0).cpu().numpy()
-            
-            draw_mask(frame, mask)
-            out.write(frame)
+                if scale is not None:
+
+                    frame_points = frame_points * scale
+
+                labels = np.ones(len(frame_points), dtype=np.int32)
+
+                predictor.add_new_points_or_box(
+                    inference_state=inference_state,
+                    frame_idx=frame_idx,
+                    obj_id=0,
+                    points=frame_points,
+                    labels=labels,
+                )
+
+            for frame_idx, _, logits in predictor.propagate_in_video(inference_state):
+
+                source_frame_idx = start + frame_idx * extract_stride
+                cap.set(cv2.CAP_PROP_POS_FRAMES, source_frame_idx)
+
+                ret, frame = cap.read()
+                if not ret:
+                    raise RuntimeError(f"Could not read frame {source_frame_idx}")
+
+                mask = (logits[0, 0] > 0).cpu().numpy().astype(np.uint8)
+
+                if scale is not None:
+
+                    mask = cv2.resize(
+                        mask,
+                        (frame_w, frame_h),
+                        interpolation=cv2.INTER_NEAREST,
+                    )
+
+                draw_mask(frame, mask.astype(bool))
+                out.write(frame)
+
+            if end:
+                break
+
+            start = stop
+            stop = start + extract_stride * block_size
 
     out.release()
 
